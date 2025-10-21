@@ -28,17 +28,16 @@ jobs:
           fi
 
       - name: Prepare Cordova project
-  run: |
-    if [ ! -f config.xml ]; then
-      echo "⚠️ Tiada config.xml! Pastikan projek Cordova berada di root repo."
-      exit 1
-    fi
-    cordova prepare
+        run: |
+          if [ ! -f config.xml ]; then
+            echo "⚠️ Tiada config.xml! Pastikan projek Cordova berada di root repo."
+            exit 1
+          fi
+          cordova prepare
 
-- name: Build Android APK
-  run: |
-    cordova build android --release --no-interactive --verbose
-
+      - name: Build Android APK
+        run: |
+          cordova build android --release --no-interactive --verbose
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
