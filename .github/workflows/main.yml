@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
@@ -21,30 +21,16 @@ jobs:
       - name: Install Cordova
         run: npm install -g cordova
 
-      - name: Install project dependencies
-        run: |
-          if [ -f package.json ]; then
-            npm install
-          fi
-
-      - name: Prepare Cordova project
-        run: |
-          if [ ! -f config.xml ]; then
-            echo "⚠️ Tiada config.xml! Pastikan projek Cordova berada di root repo."
-            exit 1
-          fi
-          cordova prepare
-
       - name: Add Android platform
-  run: |
-    cordova platform add android
+        run: |
+          cordova platform add android
 
-- name: Build Android APK
-  run: |
-    cordova build android --release
+      - name: Build Android APK
+        run: |
+          cordova build android --release
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: KalLPPSA-APK
-          path: platforms/android/app/build/outputs/apk/release/**/*.apk
+          path: platforms/android/app/build/outputs/apk/release/*.apk
