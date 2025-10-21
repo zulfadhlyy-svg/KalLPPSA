@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ms">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>KalLPPSA - Kalkulator Pinjaman LPPS</title>
+    <style>
+      body { font-family: Arial, sans-serif; background:#f3f4f6; margin:0; padding:20px; }
+      .container { max-width:900px; margin:0 auto; background:#fff; padding:20px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+      h1 { margin:0 0 16px 0; font-size:20px; }
+      .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+      label div { font-size:13px; color:#374151; margin-bottom:6px; }
+      input, select { padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; width:100%; box-sizing:border-box; }
+      .row { display:flex; gap:8px; }
+      .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+      .card { background:#f9fafb; padding:12px; border-radius:8px; text-align:left; }
+      .label { font-size:12px; color:#6b7280; }
+      .value { font-size:18px; margin-top:6px; font-weight:600; }
+      .actions { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+      button { padding:8px 12px; border-radius:8px; border:1px solid #d1d5db; background:#fff; cursor:pointer; }
+      button:hover { box-shadow:0 1px 4px rgba(0,0,0,0.08); }
+      .tableWrap { overflow-x:auto; margin-top:12px; }
+      table { width:100%; border-collapse:collapse; font-size:13px; }
+      th, td { padding:8px; border-bottom:1px solid #e5e7eb; text-align:left; }
+      .note { font-size:12px; color:#6b7280; margin-top:12px; }
+      @media (max-width:800px) {
+        .grid, .cards { grid-template-columns:1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>KalLPPSA - Kalkulator Pinjaman LPPS</h1>
+      <div class="grid">
+        <label>
+          <div>1. Jumlah Pinjaman (RM)</div>
+          <input id="jumlah" type="number" min="0" step="100" value="50000" />
+        </label>
+        <label>
+          <div>2. Kadar Faedah Tahunan (%)</div>
+          <input id="kadar" type="number" min="0" step="0.01" value="4.0" />
+        </label>
+        <label>
+          <div>3. Tempoh Pinjaman</div>
+          <div class="row">
+            <input id="tempoh" type="number" min="0" step="1" value="10" />
+            <select id="unitTempoh">
+              <option value="tahun">Tahun</option>
+              <option value="bulan">Bulan</option>
+            </select>
+          </div>
+        </label>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <div class="label">Bayaran Bulanan</div>
+          <div id="bayaran" class="value">RM 0.00</div>
+        </div>
+        <div class="card">
+          <div class="label">Jumlah Bayaran Keseluruhan</div>
+          <div id="jumlahBayaran" class="value">RM 0.00</div>
+        </div>
+        <div class="card">
+          <div class="label">Jumlah Faedah</div>
+          <div id="jumlahFaedah" class="value">RM 0.00</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="toggleJadual">Tunjuk Jadual Amortisasi</button>
+        <button id="csvBtn">Muat Turun CSV</button>
+        <button id="pdfBtn">Muat Turun PDF (Lengkap)</button>
+        <button id="resetBtn">Set Semula</button>
+      </div>
+
+      <div id="jadualWrap" class="tableWrap" style="display:none;">
+        <table id="jadualTable">
+          <thead>
+            <tr><th>Bulan</th><th>Bayaran</th><th>Pokok Dibayar</th><th>Faedah</th><th>Baki</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        Nota: Aplikasi berfungsi offline. Muat turun PDF menghasilkan laporan lengkap termasuk jadual amortisasi.
+      </div>
+    </div>
+
+    <!-- jsPDF and autoTable from CDN -->
+    <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/jspdf-autotable@3.5.23/dist/jspdf.plugin.autotable.js"></script>
+
+    <script>
+      // Core logic (vanilla JS) so Cordova Android can run without build steps
+      function $(id){return document.getElementById(id);}
+      const inputs = ['jumlah','kadar','tempoh','unitTempoh'];
+      inputs.forEach(id => { const el=$(id); el && el.addEventListener('input', update); el && el.addEventListener('change', update); });
+
+      function getValues(){
+        const jumlah = Number($('jumlah').value) || 0;
+        const kadar = Number($('kadar').value) || 0;
+        const tempohVal = Number($('tempoh').value) || 0;
+        const unit = $('unitTempoh').value;
+        const bulan = unit === 'tahun' ? Math.round(tempohVal * 12) : Math.round(tempohVal);
+        return { jumlah, kadar, tempohVal, unit, bulan, kadarBulanan: (kadar/100)/12 };
+      }
+
+      function kiraBayaran(j){
+        if (j.bulan<=0) return 0;
+        if (j.kadarBulanan===0) return j.jumlah/j.bulan;
+        const r=j.kadarBulanan; const n=j.bulan;
+        return (j.jumlah * r) / (1 - Math.pow(1 + r, -n));
+      }
+
+      function janaJadualObj(j, bayaran){
+        const rows=[]; let baki=j.jumlah;
+        for(let i=1;i<=j.bulan;i++){
+          const faedah = baki * j.kadarBulanan;
+          const pokok = Math.min(bayaran - faedah, baki);
+          baki = Math.max(0, baki - pokok);
+          rows.push({bulan:i, bayaran, pokok, faedah, baki});
+        }
+        return rows;
+      }
+
+      function update(){
+        const v=getValues();
+        const bayaran=kiraBayaran(v);
+        const jumlahBayaran = bayaran * (v.bulan||1);
+        const jumlahFaedah = jumlahBayaran - v.jumlah;
+        $('bayaran').innerText = 'RM ' + bayaran.toFixed(2);
+        $('jumlahBayaran').innerText = 'RM ' + jumlahBayaran.toFixed(2);
+        $('jumlahFaedah').innerText = 'RM ' + jumlahFaedah.toFixed(2);
+        // update table if visible
+        if($('jadualWrap').style.display !== 'none'){
+          renderTable(janaJadualObj(v, bayaran));
+        }
+      }
+
+      function renderTable(rows){
+        const tbody = $('jadualTable').querySelector('tbody');
+        tbody.innerHTML = '';
+        rows.forEach(r=>{
+          const tr=document.createElement('tr');
+          tr.innerHTML = `<td>${r.bulan}</td><td>RM ${r.bayaran.toFixed(2)}</td><td>RM ${r.pokok.toFixed(2)}</td><td>RM ${r.faedah.toFixed(2)}</td><td>RM ${r.baki.toFixed(2)}</td>`;
+          tbody.appendChild(tr);
+        });
+      }
+
+      $('toggleJadual').addEventListener('click', ()=>{
+        const wrap=$('jadualWrap');
+        wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+        $('toggleJadual').innerText = wrap.style.display === 'none' ? 'Tunjuk Jadual Amortisasi' : 'Tutup Jadual';
+        update();
+      });
+
+      $('csvBtn').addEventListener('click', ()=>{
+        const v=getValues(); const bayaran=kiraBayaran(v);
+        const rows=janaJadualObj(v,bayaran);
+        const header=['Bulan','Bayaran','Pokok Dibayar','Faedah','Baki'];
+        const csv = [header.join(',')].concat(rows.map(r=>[r.bulan,r.bayaran.toFixed(2),r.pokok.toFixed(2),r.faedah.toFixed(2),r.baki.toFixed(2)].join(','))).join('\n');
+        const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob);
+        const a=document.createElement('a'); a.href=url; a.download=`jadual_lpps_${v.jumlah}_${v.bulan}bulan.csv`; a.click(); URL.revokeObjectURL(url);
+      });
+
+      $('pdfBtn').addEventListener('click', ()=>{
+        const v=getValues(); const bayaran=kiraBayaran(v);
+        const rows=janaJadualObj(v,bayaran);
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({unit:'pt', format:'a4'});
+        doc.setFontSize(16); doc.text('Laporan Pinjaman LPPS', 40, 50); doc.setFontSize(11);
+        const garis=70;
+        doc.text(`Jumlah Pinjaman: RM ${v.jumlah.toFixed(2)}`, 40, garis);
+        doc.text(`Kadar Faedah Tahunan: ${v.kadar.toFixed(2)}%`, 40, garis+16);
+        doc.text(`Tempoh: ${v.tempohVal} ${v.unit}`, 40, garis+32);
+        doc.text(`Bayaran Bulanan: RM ${bayaran.toFixed(2)}`, 40, garis+48);
+        doc.text(`Jumlah Bayaran Keseluruhan: RM ${(bayaran*(v.bulan||1)).toFixed(2)}`, 40, garis+64);
+        doc.text(`Jumlah Faedah: RM ${(bayaran*(v.bulan||1)-v.jumlah).toFixed(2)}`, 40, garis+80);
+
+        const data = rows.map(r=>[r.bulan.toString(), r.bayaran.toFixed(2), r.pokok.toFixed(2), r.faedah.toFixed(2), r.baki.toFixed(2)]);
+        doc.autoTable({ head:[['Bulan','Bayaran (RM)','Pokok (RM)','Faedah (RM)','Baki (RM)']], body: data, startY: garis+100, styles:{fontSize:9}, headStyles:{fillColor:[220,220,220]}, margin:{left:40,right:40}, theme:'grid' });
+        doc.save(`lpps_laporan_${v.jumlah}_${v.bulan}bulan.pdf`);
+      });
+
+      $('resetBtn').addEventListener('click', ()=>{
+        $('jumlah').value = 50000; $('kadar').value = 4.0; $('tempoh').value = 10; $('unitTempoh').value='tahun'; update();
+      });
+
+      // initial update
+      update();
+    </script>
+  </body>
+</html>
