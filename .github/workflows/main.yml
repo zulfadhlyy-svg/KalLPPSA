@@ -35,9 +35,13 @@ jobs:
           fi
           cordova prepare
 
-      - name: Build Android APK
-        run: |
-          cordova build android --release --no-interactive --verbose
+      - name: Add Android platform
+  run: |
+    cordova platform add android
+
+- name: Build Android APK
+  run: |
+    cordova build android --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
