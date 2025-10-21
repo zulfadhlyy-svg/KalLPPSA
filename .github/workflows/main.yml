@@ -25,15 +25,19 @@ jobs:
         run: |
           cordova platform add android
 
-      - name: Build Android APK
+      - name: Build Android APK (Release)
         run: |
-          cordova build android --release
+          cordova build android --release -- --packageType=apk
 
-      - name: Upload APK or AAB
+      - name: Show output directory (debug)
+        run: |
+          echo "Hasil build disimpan di:"
+          find platforms/android/app/build/outputs -type f
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: KalLPPSA-APK
           path: |
             platforms/android/app/build/outputs/apk/release/*.apk
             platforms/android/app/build/outputs/apk/**/*.apk
-            platforms/android/app/build/outputs/bundle/release/*.aab
