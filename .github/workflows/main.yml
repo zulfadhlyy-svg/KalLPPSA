@@ -30,10 +30,10 @@ jobs:
           cordova build android --release
 
       - name: Upload APK or AAB
-  uses: actions/upload-artifact@v4
-  with:
-    name: KalLPPSA-APK
-    path: |
-      platforms/android/app/build/outputs/apk/release/*.apk
-      platforms/android/app/build/outputs/apk/**/*.apk
-      platforms/android/app/build/outputs/bundle/release/*.aab
+        uses: actions/upload-artifact@v4
+        with:
+          name: KalLPPSA-APK
+          path: |
+            platforms/android/app/build/outputs/apk/release/*.apk
+            platforms/android/app/build/outputs/apk/**/*.apk
+            platforms/android/app/build/outputs/bundle/release/*.aab
