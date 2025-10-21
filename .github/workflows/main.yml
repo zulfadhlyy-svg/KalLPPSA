@@ -22,14 +22,21 @@ jobs:
         run: npm install -g cordova
 
       - name: Install project dependencies
-        run: npm install || true
+        run: |
+          if [ -f package.json ]; then
+            npm install
+          fi
 
       - name: Add Android platform
-        run: cordova platform add android || true
+        run: |
+          cordova platform add android || echo "Android platform already added"
 
       - name: Build Android APK
-        run: cordova build android --release
+        run: |
+          cordova build android --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
+          name: KalLPPSA-APK
+          path: platforms/android/app/build/outputs/apk/release/**/*.apk
